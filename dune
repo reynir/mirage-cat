@@ -1,0 +1,14 @@
+(library
+ (public_name solo5-file-descriptor)
+ (name file_descriptor)
+ (libraries mirage-solo5 cstruct fmt)
+ (wrapped false)
+ (foreign_stubs
+  (language c)
+  (names solo5_net_stubs)))
+
+(rule
+ (target solo5_net_stubs.c)
+ (deps solo5_net_stubs.solo5.c solo5_net_stubs.default.c)
+ (action
+  (copy solo5_net_stubs.%{context_name}.c %{target})))

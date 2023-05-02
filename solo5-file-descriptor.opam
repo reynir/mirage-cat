@@ -1,0 +1,15 @@
+opam-version: "2.0"
+maintainer: "Reynir Björnsson <reynir@reynir.dk>"
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+]
+depends: [
+  "ocaml"
+  "dune"
+  "cstruct"
+  "mirage-solo5"
+  "fmt"
+]
+synopsis: "Solo5 file descriptors (ab)using network devices"
+description: "See the synopsis."

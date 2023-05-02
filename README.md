@@ -2,11 +2,34 @@
 
 Mirage-cat is a proof of concept of how to exploit solo5-hvt's support for file descriptors for network devices for other purposes. The unikernel is able to read from stdin - something that is otherwise not supported on solo5.
 
+Two versions exist. One uses the mirage-net interface with the downside of an interface not very well-suited for normal file descriptor operations, and another that exposes the hypercalls more directly (with C stubs from mirage-net-solo5).
+
+## Building
+
+### Simple
+
+To build the "simple" example that uses mirage-net interface:
+
+    cd simple/
+    mirage configure -t hvt
+    make
+
+The binary is then found inside `simple/dist/cat.hvt` (relative to the root of the project).
+
+### Advanced
+
+To build the "advanced" example that uses its own device driver exposing the hypercalls directly:
+
+    mirage configure -f advanced/config.ml -t hvt
+    make
+
+The binary is then found inside `advanced/dist/cat.hvt`.
+
 ## Usage
 
 The simplest way to call mirage-cat is using `--net:stdin=@0`:
 
-    $ solo5-hvt --net:stdin=@0 ./dist/cat.hvt
+    $ solo5-hvt --net:stdin=@0 cat.hvt
                 |      ___|
       __|  _ \  |  _ \ __ \
     \__ \ (   | | (   |  ) |
@@ -24,7 +47,7 @@ The simplest way to call mirage-cat is using `--net:stdin=@0`:
 
 However, both the solo5 bindings and mirage-net-solo5 library are quite chatty as can be seen in the above output. It is therefore recommended to quiet down the chatty bits:
 
-    $ solo5-hvt --net:stdin=@0 ./dist/cat.hvt --solo5:quiet -l netif:quiet
+    $ solo5-hvt --net:stdin=@0 cat.hvt --solo5:quiet -l netif:quiet
     Hello, World!
     Hello, World!
 
@@ -54,10 +77,20 @@ val listen: t -> header_size:int -> (Cstruct.t -> unit Lwt.t) -> (unit, error) r
 This provides a pretty terrible experience for reading and writing to a file descriptor.
 The hyper calls could be exposed directly, but this would require implementing a new device.
 
+Instead, this repository provides as well more direct read and write bindings through a custom device.
+See the files in `advanced/` as well as `file_descriptor.ml` and `solo5_net_stubs.solo5.c`.
+
 ## Limitations
 
-I have not figured a way to detect end of file. Instead, when end of file is reached the unikernel goes into an infinite loop.
+Detecting end of file doesn't work. Instead, when end of file is reached the unikernel goes into an infinite loop.
 
-    $ uptime | solo5-hvt --net:stdin=@0 ./dist/cat.hvt --solo5:quiet -l netif:quiet
+    $ uptime | solo5-hvt --net:stdin=@0 cat.hvt --solo5:quiet -l netif:quiet
      20:01:32 up 1 day, 23:13,  1 user,  load average: 0.81, 0.77, 0.85
     ^Csolo5-hvt: Exiting on signal 2
+
+The reason for this is because solo5-hvt returns `SOLO5_R_AGAIN` when the read operation returns 0 (EOF):
+
+https://github.com/Solo5/solo5/blob/bf29b8af11feec9dbc2e74ccdc69bc1e0cbf5dfe/tenders/hvt/hvt_module_net.c#L77-L82
+
+This does not seem to be the case for solo5-spt.
+It is unclear to me in what cases (if any) reading from a tap device could return zero bytes.
