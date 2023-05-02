@@ -32,7 +32,27 @@ However, both the solo5 bindings and mirage-net-solo5 library are quite chatty a
 
 This exploits solo5's ability to pass file descripts as network devices. This was originally added in order to run the solo5 tender with less privileges by opening the network device (through `/dev/net/tun`) and then dropping `CAP_NETADMIN` before exec'ing solo5-hvt for example when running solo5 in a docker container.
 
-From the solo5 tender's point of view what you have is just a file descriptor and `read` and `write` are exposed. The only limitation is that solo5-hvt needs to be able to set `O_NONBLOCK` with `fcntl(2)`.
+From the solo5 tender's point of view what you have is just a file descriptor and `read(2)` and `write(2)` are exposed. The only limitation is that solo5-hvt needs to be able to set `O_NONBLOCK` with `fcntl(2)`. While the solo5 bindings expose `read(2)` and `write(2)` in Mirage these hypercalls are not exposed directly. Instead you have `write` and `listen` defined in [mirage-net](https://github.com/mirage/mirage-net/blob/3f75f8afbbc4b11536a04cd45eb95f46c9b5210b/src/mirage_net.mli#L60-L73).
+
+```OCaml
+val write: t -> size:int -> (Cstruct.t -> int) -> (unit, error) result Lwt.t
+(** [write net ~size fill] allocates a buffer of length [size], where [size]
+   must not exceed the interface maximum packet size ({!mtu} plus Ethernet
+   header). The allocated buffer is zeroed and passed to the [fill] function
+   which returns the payload length, which may not exceed the length of the
+   buffer. When [fill] returns, a sub buffer is put on the wire: the allocated
+   buffer from index 0 to the returned length. *)
+
+val listen: t -> header_size:int -> (Cstruct.t -> unit Lwt.t) -> (unit, error) result Lwt.t
+(** [listen ~header_size net fn] waits for a [packet] with size at most
+   [header_size + mtu] on the network device. When a [packet] is received, an
+   asynchronous task is created in which [fn packet] is called. The ownership
+   of [packet] is transferred to [fn].  The function can be stopped by calling
+   {!disconnect}. *)
+```
+
+This provides a pretty terrible experience for reading and writing to a file descriptor.
+The hyper calls could be exposed directly, but this would require implementing a new device.
 
 ## Limitations
 
